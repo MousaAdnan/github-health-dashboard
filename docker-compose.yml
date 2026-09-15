@@ -1,0 +1,33 @@
+services:
+  api:
+    build: ./api
+    ports:
+      - "3001:3001"
+    environment:
+      - DB_PATH=/data/health.db
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+    volumes:
+      - db_data:/data
+    restart: unless-stopped
+
+  client:
+    build: ./client
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # One-shot ingest: docker-compose run --rm ingest <owner>
+  ingest:
+    build: ./ingest
+    environment:
+      - DB_PATH=/data/health.db
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+    volumes:
+      - db_data:/data
+    profiles:
+      - ingest
+
+volumes:
+  db_data:
