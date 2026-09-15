@@ -21,17 +21,23 @@ export default function App() {
     setError(null);
     setView({ kind: "loading", owner });
 
-    // Try to load existing data first
     try {
       const data = await fetchOwner(owner);
       setView({ kind: "list", owner, repos: data.repos, fetched_at: data.fetched_at });
       return;
     } catch {
-      // Not in DB yet — run ingest
+      // not in DB yet — run ingest
     }
 
     try {
       await triggerIngest(owner);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+      setView({ kind: "home" });
+      return;
+    }
+
+    try {
       const data = await fetchOwner(owner);
       setView({ kind: "list", owner, repos: data.repos, fetched_at: data.fetched_at });
     } catch (err: unknown) {
@@ -49,119 +55,159 @@ export default function App() {
       setView({ kind: "list", owner, repos: data.repos, fetched_at: data.fetched_at });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Refresh failed");
+      setView({ kind: "list", owner, repos: [], fetched_at: null });
     }
   }
 
+  const isHome = view.kind === "home";
+
   return (
-    <div style={{ maxWidth: "780px", margin: "0 auto", padding: "40px 20px" }}>
-      {/* Header */}
-      <div style={{ marginBottom: "32px" }}>
-        <h1
-          onClick={() => { setView({ kind: "home" }); setQuery(""); setError(null); }}
-          style={{ fontSize: "24px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "10px" }}
-        >
-          <span style={{ fontSize: "22px" }}>⬡</span> GitHub Health
-        </h1>
-        <p style={{ color: "var(--muted)", marginTop: "4px" }}>
-          Analyze the activity and health of any public GitHub profile.
-        </p>
+    <>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {/* Nav */}
+      <div style={{ borderBottom: "1px solid var(--border)", marginBottom: isHome ? 0 : "44px" }}>
+        <div style={{ maxWidth: "860px", margin: "0 auto", padding: "0 32px", height: "64px", display: "flex", alignItems: "center" }}>
+          <span
+            onClick={() => { setView({ kind: "home" }); setQuery(""); setError(null); }}
+            style={{ fontFamily: "var(--serif)", fontSize: "22px", fontWeight: 300, letterSpacing: "0.4px", cursor: "pointer", color: "var(--text)" }}
+          >
+            GitHub Health
+          </span>
+        </div>
       </div>
 
-      {/* Search */}
-      <form onSubmit={handleSearch} style={{ display: "flex", gap: "8px", marginBottom: "32px" }}>
-        <input
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Enter a GitHub username or org…"
-          style={{
-            flex:         1,
-            padding:      "10px 14px",
-            background:   "var(--surface)",
-            border:       "1px solid var(--border)",
-            borderRadius: "var(--radius)",
-            color:        "var(--text)",
-            fontSize:     "15px",
-            outline:      "none",
-          }}
-          onFocus={e => (e.target.style.borderColor = "var(--accent)")}
-          onBlur={e  => (e.target.style.borderColor = "var(--border)")}
-        />
-        <button
-          type="submit"
-          disabled={view.kind === "loading"}
-          style={{
-            padding:      "10px 20px",
-            background:   "var(--accent)",
-            color:        "#0d1117",
-            borderRadius: "var(--radius)",
-            fontWeight:   600,
-            fontSize:     "15px",
-            opacity:      view.kind === "loading" ? 0.6 : 1,
-          }}
-        >
-          {view.kind === "loading" ? "Analyzing…" : "Analyze"}
-        </button>
-      </form>
+      {/* Home hero */}
+      {isHome && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "calc(100vh - 64px)", padding: "0 32px 80px", textAlign: "center" }}>
+          <p style={{ fontSize: "12px", fontWeight: 600, letterSpacing: "3px", textTransform: "uppercase", color: "var(--dim)", marginBottom: "24px" }}>
+            Repository Intelligence
+          </p>
+          <h1 style={{ fontFamily: "var(--serif)", fontSize: "clamp(40px, 5vw, 64px)", fontWeight: 300, color: "var(--text)", margin: "0 0 20px", letterSpacing: "-1px", lineHeight: 1.1 }}>
+            How healthy are your repos?
+          </h1>
+          <p style={{ color: "var(--muted)", fontSize: "17px", margin: "0 0 48px", maxWidth: "460px", lineHeight: 1.7 }}>
+            Score commit activity, PR hygiene, and issue resolution across any public GitHub profile.
+          </p>
 
-      {error && (
-        <p style={{ color: "var(--red)", marginBottom: "16px", padding: "12px 16px", background: "rgba(248,81,73,0.1)", borderRadius: "var(--radius)", border: "1px solid var(--red)" }}>
-          {error}
-        </p>
-      )}
-
-      {/* Loading state */}
-      {view.kind === "loading" && (
-        <div style={{ color: "var(--muted)", display: "flex", alignItems: "center", gap: "10px" }}>
-          <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>↻</span>
-          Fetching repos for <strong style={{ color: "var(--text)" }}>{view.owner}</strong>…
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      )}
-
-      {/* Repo list */}
-      {view.kind === "list" && (
-        <>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <span />
+          <form onSubmit={handleSearch} style={{ display: "flex", width: "min(580px, 100%)" }}>
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="github username or org"
+              style={{
+                flex: 1, padding: "14px 20px",
+                background: "var(--surface)", border: "1px solid var(--border)", borderRight: "none",
+                borderRadius: "var(--radius) 0 0 var(--radius)", color: "var(--text)",
+                fontSize: "16px", outline: "none",
+              }}
+              onFocus={e => (e.target.style.borderColor = "var(--accent)")}
+              onBlur={e  => (e.target.style.borderColor = "var(--border)")}
+            />
             <button
-              onClick={() => handleRefresh(view.owner)}
-              style={{ background: "none", color: "var(--muted)", fontSize: "13px", padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius)" }}
+              type="submit"
+              style={{
+                padding: "14px 32px", background: "var(--accent)", color: "var(--bg)",
+                borderRadius: "0 var(--radius) var(--radius) 0",
+                fontSize: "15px", fontWeight: 500,
+                whiteSpace: "nowrap", letterSpacing: "0.2px",
+              }}
             >
-              ↻ Refresh
+              Analyze
             </button>
-          </div>
-          <RepoList
-            owner={view.owner}
-            repos={view.repos}
-            onSelect={repo => setView({ kind: "detail", owner: view.owner, repo })}
-          />
-        </>
-      )}
+          </form>
 
-      {/* Repo detail */}
-      {view.kind === "detail" && (
-        <RepoDetail
-          owner={view.owner}
-          repoName={view.repo.name}
-          onBack={() => {
-            // Go back to list — re-fetch from DB (instant, no ingest)
-            fetchOwner(view.owner).then(data =>
-              setView({ kind: "list", owner: view.owner, repos: data.repos, fetched_at: data.fetched_at })
-            );
-          }}
-        />
-      )}
+          {error && (
+            <p style={{ color: "var(--bad-text)", marginTop: "20px", padding: "12px 20px", background: "var(--bad-bg)", borderRadius: "var(--radius)", border: "1px solid var(--bad-border)", fontSize: "14px" }}>
+              {error}
+            </p>
+          )}
 
-      {/* Home empty state */}
-      {view.kind === "home" && (
-        <div style={{ textAlign: "center", color: "var(--muted)", marginTop: "60px" }}>
-          <div style={{ fontSize: "48px", marginBottom: "12px" }}>⬡</div>
-          <p>Enter a GitHub username or org to get started.</p>
-          <p style={{ fontSize: "12px", marginTop: "8px" }}>
-            First-time analysis fetches live data — takes ~20s per profile.
+          <p style={{ color: "var(--dim)", fontSize: "13px", marginTop: "16px" }}>
+            First-time analysis takes ~20 seconds — fetches live data.
           </p>
         </div>
       )}
-    </div>
+
+      {/* Content area (non-home) */}
+      {!isHome && (
+        <div style={{ maxWidth: "860px", margin: "0 auto", padding: "0 32px 60px" }}>
+
+          {/* Compact search bar on list/detail/loading views */}
+          {view.kind !== "detail" && (
+            <form onSubmit={handleSearch} style={{ display: "flex", width: "min(520px, 100%)", marginBottom: "40px" }}>
+              <input
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="github username or org"
+                style={{
+                  flex: 1, padding: "11px 16px",
+                  background: "var(--surface)", border: "1px solid var(--border)", borderRight: "none",
+                  borderRadius: "var(--radius) 0 0 var(--radius)", color: "var(--text)",
+                  fontSize: "15px", outline: "none",
+                }}
+                onFocus={e => (e.target.style.borderColor = "var(--accent)")}
+                onBlur={e  => (e.target.style.borderColor = "var(--border)")}
+              />
+              <button
+                type="submit"
+                disabled={view.kind === "loading"}
+                style={{
+                  padding: "11px 24px", background: "var(--accent)", color: "var(--bg)",
+                  borderRadius: "0 var(--radius) var(--radius) 0",
+                  fontSize: "15px", fontWeight: 500, opacity: view.kind === "loading" ? 0.6 : 1,
+                }}
+              >
+                {view.kind === "loading" ? "Analyzing…" : "Analyze"}
+              </button>
+            </form>
+          )}
+
+          {error && (
+            <p style={{ color: "var(--bad-text)", marginBottom: "20px", padding: "12px 20px", background: "var(--bad-bg)", borderRadius: "var(--radius)", border: "1px solid var(--bad-border)", fontSize: "14px" }}>
+              {error}
+            </p>
+          )}
+
+          {view.kind === "loading" && (
+            <div style={{ color: "var(--muted)", display: "flex", alignItems: "center", gap: "10px", fontSize: "15px" }}>
+              <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>↻</span>
+              Fetching repos for <strong style={{ color: "var(--text)", fontWeight: 600 }}>{view.owner}</strong>…
+            </div>
+          )}
+
+          {view.kind === "list" && (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
+                <span />
+                <button
+                  onClick={() => handleRefresh(view.owner)}
+                  style={{ background: "none", color: "var(--muted)", fontSize: "13px", padding: "4px 0", border: "none", letterSpacing: "0.2px" }}
+                >
+                  ↻ Refresh
+                </button>
+              </div>
+              <RepoList
+                owner={view.owner}
+                repos={view.repos}
+                onSelect={repo => setView({ kind: "detail", owner: view.owner, repo })}
+              />
+            </>
+          )}
+
+          {view.kind === "detail" && (
+            <RepoDetail
+              owner={view.owner}
+              repoName={view.repo.name}
+              onBack={() => {
+                fetchOwner(view.owner).then(data =>
+                  setView({ kind: "list", owner: view.owner, repos: data.repos, fetched_at: data.fetched_at })
+                );
+              }}
+            />
+          )}
+        </div>
+      )}
+    </>
   );
 }

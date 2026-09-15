@@ -1,24 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=Work+Sans:wght@400;500;600&display=swap');
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:        #0d1117;
-  --surface:   #161b22;
-  --border:    #30363d;
-  --text:      #e6edf3;
-  --muted:     #8b949e;
-  --accent:    #58a6ff;
-  --green:     #3fb950;
-  --yellow:    #d29922;
-  --red:       #f85149;
-  --radius:    8px;
+  --bg:           #f3ede0;
+  --surface:      #ece6d6;
+  --border:       #cbbfa4;
+  --row-div:      #e0d8c8;
+  --text:         #1e1408;
+  --muted:        #8a7460;
+  --dim:          #a89278;
+  --accent:       #5c3d1e;
+  --serif:        'Cormorant Garamond', Georgia, serif;
+
+  --fair-border:  #9a7828;
+  --fair-text:    #7a5a1e;
+  --fair-bg:      #f5edda;
+
+  --good-border:  #4c6e50;
+  --good-text:    #3a5e40;
+  --good-bg:      #e6f0e8;
+
+  --bad-border:   #a05040;
+  --bad-text:     #6e2e23;
+  --bad-bg:       #f5e6e3;
+
+  --radius:       4px;
 }
 
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
+  font-family: 'Work Sans', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
   min-height: 100vh;
 }
 

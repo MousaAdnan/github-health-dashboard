@@ -1,26 +1,28 @@
 interface Props { score: number; size?: "sm" | "lg" }
 
 export default function HealthBadge({ score, size = "sm" }: Props) {
-  const color  = score >= 70 ? "var(--green)" : score >= 40 ? "var(--yellow)" : "var(--red)";
-  const label  = score >= 70 ? "Healthy"       : score >= 40 ? "Fair"          : "Inactive";
-  const fSize  = size === "lg" ? "22px" : "13px";
-  const pad    = size === "lg" ? "6px 14px" : "2px 8px";
+  const isHealthy = score >= 70;
+  const isFair    = score >= 40;
+
+  const borderColor = isHealthy ? "var(--good-border)" : isFair ? "var(--fair-border)" : "var(--bad-border)";
+  const textColor   = isHealthy ? "var(--good-text)"   : isFair ? "var(--fair-text)"   : "var(--bad-text)";
+  const bg          = isHealthy ? "var(--good-bg)"     : isFair ? "var(--fair-bg)"     : "var(--bad-bg)";
+  const label       = isHealthy ? "Healthy"            : isFair ? "Fair"               : "Inactive";
 
   return (
     <span style={{
-      display:      "inline-flex",
-      alignItems:   "center",
-      gap:          "6px",
-      padding:      pad,
-      borderRadius: "20px",
-      border:       `1px solid ${color}`,
-      color,
-      fontSize:     fSize,
-      fontWeight:   600,
-      whiteSpace:   "nowrap",
+      display:       "inline-block",
+      padding:       size === "lg" ? "4px 12px" : "3px 9px",
+      border:        `1px solid ${borderColor}`,
+      borderRadius:  "3px",
+      color:         textColor,
+      background:    bg,
+      fontSize:      size === "lg" ? "14px" : "12px",
+      fontWeight:    600,
+      letterSpacing: "0.2px",
+      whiteSpace:    "nowrap",
     }}>
-      <span style={{ fontSize: size === "lg" ? "14px" : "10px" }}>●</span>
-      {size === "lg" ? `${score}/100 · ${label}` : score}
+      {score} · {label}
     </span>
   );
 }

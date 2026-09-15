@@ -24,6 +24,10 @@ router.post("/:owner", (req: Request, res: Response) => {
     { env, timeout: 90_000 },
     (err, stdout, stderr) => {
       if (err) {
+        if (stdout.includes("USER_NOT_FOUND")) {
+          res.status(404).json({ error: `No GitHub account found for '${owner}'.` });
+          return;
+        }
         console.error(stderr);
         res.status(500).json({ error: err.message, detail: stderr.slice(0, 500) });
         return;

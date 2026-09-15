@@ -265,7 +265,7 @@ def main():
     print(f"Fetching repos for {owner}...")
     status, user_data = gh_request(f"/users/{owner}")
     if status == 404:
-        print(f"User '{owner}' not found.")
+        print(f"USER_NOT_FOUND")
         sys.exit(1)
 
     repos = paginate(f"/users/{owner}/repos?type=public&sort=pushed")
