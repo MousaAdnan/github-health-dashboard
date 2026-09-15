@@ -55,7 +55,13 @@ export default function App() {
       setView({ kind: "list", owner, repos: data.repos, fetched_at: data.fetched_at });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Refresh failed");
-      setView({ kind: "list", owner, repos: [], fetched_at: null });
+      // Fall back to whatever is cached in the DB rather than showing an empty list
+      try {
+        const data = await fetchOwner(owner);
+        setView({ kind: "list", owner, repos: data.repos, fetched_at: data.fetched_at });
+      } catch {
+        setView({ kind: "home" });
+      }
     }
   }
 

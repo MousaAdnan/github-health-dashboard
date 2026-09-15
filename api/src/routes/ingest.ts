@@ -28,11 +28,19 @@ router.post("/:owner", (req: Request, res: Response) => {
           res.status(404).json({ error: `No GitHub account found for '${owner}'.` });
           return;
         }
-        console.error(stderr);
-        res.status(500).json({ error: err.message, detail: stderr.slice(0, 500) });
+        if (stdout.includes("RATE_LIMITED")) {
+          res.status(429).json({ error: "GitHub rate limit reached. Add a personal access token (no scopes needed) to raise the limit from 60 to 5,000 requests/hr." });
+          return;
+        }
+        if (err.killed) {
+          res.status(408).json({ error: `Analysis timed out — '${owner}' may have too many repos. Add a GitHub token to speed things up.` });
+          return;
+        }
+        console.error("[ingest]", stderr.slice(0, 500));
+        res.status(500).json({ error: "Ingest failed — check that the username is correct and try again." });
         return;
       }
-      invalidateDb(); // force DB reload after Python writes new data
+      invalidateDb();
       res.json({ ok: true, owner, log: stdout });
     }
   );

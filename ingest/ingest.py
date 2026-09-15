@@ -70,14 +70,14 @@ def gh_request(path: str, retries: int = 3):
             if e.code == 404:
                 return 404, None
             if e.code == 202:
-                # GitHub is computing stats — retry after a short wait
-                print(f"  … stats computing, retry {attempt + 1}/3")
-                time.sleep(3)
-                continue
+                return 202, None  # GitHub computing stats; skip rather than block
             if e.code in (403, 429):
                 reset = e.headers.get("X-RateLimit-Reset")
                 wait  = max(int(reset) - int(time.time()) + 2, 10) if reset else 60
-                print(f"  ⚠ rate limited, sleeping {wait}s...")
+                if wait > 15:
+                    print("RATE_LIMITED")
+                    sys.exit(2)
+                print(f"  ⚠ rate limit low, waiting {wait}s...")
                 time.sleep(wait)
                 continue
             return e.code, None
@@ -88,7 +88,7 @@ def gh_request(path: str, retries: int = 3):
     return 0, None
 
 
-def paginate(path: str, per_page: int = 100):
+def paginate(path: str, per_page: int = 100, limit: int = 0):
     results = []
     page = 1
     sep = "&" if "?" in path else "?"
@@ -97,6 +97,8 @@ def paginate(path: str, per_page: int = 100):
         if status != 200 or not data:
             break
         results.extend(data)
+        if limit and len(results) >= limit:
+            return results[:limit]
         if len(data) < per_page:
             break
         page += 1
@@ -191,16 +193,16 @@ def ingest_repo(conn: sqlite3.Connection, owner: str, repo: dict):
     if status == 200 and stats:
         weekly = [w["total"] for w in stats]   # oldest → newest
 
-    # PRs (last 100 open + 100 closed)
-    prs_open   = paginate(f"/repos/{rid}/pulls?state=open")
-    prs_closed = paginate(f"/repos/{rid}/pulls?state=closed")
+    # PRs — cap at 100 each to avoid unbounded fetching on large repos
+    prs_open   = paginate(f"/repos/{rid}/pulls?state=open",   limit=100)
+    prs_closed = paginate(f"/repos/{rid}/pulls?state=closed", limit=100)
     all_prs    = prs_open + prs_closed
 
     merged   = sum(1 for p in prs_closed if p.get("merged_at"))
     pr_rate  = (merged / len(prs_closed)) if prs_closed else None
 
-    # Issues (excluding PRs)
-    issues_raw = paginate(f"/repos/{rid}/issues?state=all&filter=all")
+    # Issues (excluding PRs) — cap at 100
+    issues_raw = paginate(f"/repos/{rid}/issues?state=all&filter=all", limit=100)
     issues     = [i for i in issues_raw if "pull_request" not in i]
     closed_iss = [i for i in issues if i["state"] == "closed"]
     issue_rate = (len(closed_iss) / len(issues)) if issues else None
@@ -268,8 +270,10 @@ def main():
         print(f"USER_NOT_FOUND")
         sys.exit(1)
 
-    repos = paginate(f"/users/{owner}/repos?type=public&sort=pushed")
-    print(f"Found {len(repos)} public repos. Ingesting...\n")
+    MAX_REPOS = 30
+    repos = paginate(f"/users/{owner}/repos?type=public&sort=pushed", limit=MAX_REPOS)
+    note  = f" (capped at {MAX_REPOS} most-recently-pushed)" if len(repos) == MAX_REPOS else ""
+    print(f"Found {len(repos)} public repos{note}. Ingesting...\n")
 
     for repo in repos:
         if repo.get("fork"):
