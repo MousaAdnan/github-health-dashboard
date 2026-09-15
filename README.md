@@ -72,4 +72,4 @@ docker compose up --build     # api on :3001, client on :5173
 
 ## Why I Built This
 
-I wanted a way to quickly audit the health of my own repos (and repos I contribute to) without clicking through GitHub's UI. A single score that rolls up commit cadence, PR hygiene, and issue resolution makes it easy to see where a project needs attention.
+I wanted to contribute to open source projects but kept finding projects that had been abandoned. This is a quick way to figure out if a repo is active without manually going through accounts and commits.
