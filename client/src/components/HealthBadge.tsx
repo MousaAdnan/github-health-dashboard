@@ -1,8 +1,8 @@
 interface Props { score: number; size?: "sm" | "lg" }
 
 export default function HealthBadge({ score, size = "sm" }: Props) {
-  const isHealthy = score >= 70;
-  const isFair    = score >= 40;
+  const isHealthy = score >= 60;
+  const isFair    = score >= 30;
 
   const borderColor = isHealthy ? "var(--good-border)" : isFair ? "var(--fair-border)" : "var(--bad-border)";
   const textColor   = isHealthy ? "var(--good-text)"   : isFair ? "var(--fair-text)"   : "var(--bad-text)";

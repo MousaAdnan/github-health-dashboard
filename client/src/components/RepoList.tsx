@@ -62,7 +62,7 @@ export default function RepoList({ owner, repos, onSelect }: Props) {
             <div>
               <div style={{ fontWeight: 600, fontSize: "16px", letterSpacing: "-0.1px" }}>{repo.name}</div>
               {repo.description
-                ? <div style={{ color: "var(--muted)", fontSize: "13px", marginTop: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{repo.description}</div>
+                ? <div style={{ color: "var(--muted)", fontSize: "13px", marginTop: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{repo.description.length > 50 ? repo.description.slice(0, 50) + "…" : repo.description}</div>
                 : <div style={{ color: "var(--dim)", fontSize: "13px", marginTop: "3px", fontStyle: "italic" }}>No description</div>
               }
             </div>
