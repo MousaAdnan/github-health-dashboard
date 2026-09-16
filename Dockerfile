@@ -37,6 +37,7 @@ ENV NODE_ENV=production \
     DB_PATH=/tmp/health.db \
     INGEST_SCRIPT=/app/ingest/ingest.py \
     CLIENT_DIST=/app/public \
+    TRUST_PROXY=1 \
     PORT=3001
 
 EXPOSE 3001
