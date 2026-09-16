@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: github-health
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      # Set this in the Render dashboard (Environment tab) — do not commit it.
+      # A classic token with no scopes is enough for public repos, and lifts the
+      # GitHub rate limit from 60 to 5,000 requests/hr.
+      - key: GITHUB_TOKEN
+        sync: false

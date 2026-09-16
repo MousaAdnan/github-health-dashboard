@@ -26,7 +26,8 @@ router.get("/:owner", async (req: Request, res: Response) => {
 
     res.json({ owner, fetched_at: meta[0]?.fetched_at ?? null, repos });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error("[repos]", err);
+    res.status(500).json({ error: "Something went wrong looking up that owner." });
   }
 });
 
@@ -93,7 +94,8 @@ router.get("/:owner/:repo", async (req: Request, res: Response) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error("[repos]", err);
+    res.status(500).json({ error: "Something went wrong looking up that repo." });
   }
 });
 

@@ -1,15 +1,38 @@
 import { Router, Request, Response } from "express";
+import rateLimit from "express-rate-limit";
 import { execFile } from "child_process";
 import path from "path";
 import { invalidateDb } from "../db";
 
 const router  = Router();
-const INGEST  = path.join(__dirname, "../../../ingest/ingest.py");
+
+// In the container the ingest script is copied to /app/ingest; locally it lives
+// a few levels up from dist/routes. INGEST_SCRIPT lets the image say where.
+const INGEST  = process.env.INGEST_SCRIPT ?? path.join(__dirname, "../../../ingest/ingest.py");
 const DB_PATH = process.env.DB_PATH ?? path.join(__dirname, "../../../data/health.db");
 
+// Each ingest spawns a subprocess and burns real GitHub API quota on our token —
+// cap it hard per IP so a public link can't be used to exhaust either.
+const ingestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many analyses from this IP — please wait a few minutes and try again." },
+});
+
+let activeIngests = 0;
+const MAX_CONCURRENT_INGESTS = 2;
+
 // POST /api/ingest/:owner — run Python ingest script, wait for completion
-router.post("/:owner", (req: Request, res: Response) => {
+router.post("/:owner", ingestLimiter, (req: Request, res: Response) => {
   const { owner } = req.params;
+
+  if (activeIngests >= MAX_CONCURRENT_INGESTS) {
+    res.status(503).json({ error: "Server is busy analyzing another request — please try again shortly." });
+    return;
+  }
+  activeIngests++;
 
   const env = {
     ...process.env,
@@ -23,6 +46,7 @@ router.post("/:owner", (req: Request, res: Response) => {
     [INGEST, owner],
     { env, timeout: 90_000 },
     (err, stdout, stderr) => {
+      activeIngests--;
       if (err) {
         if (stdout.includes("USER_NOT_FOUND")) {
           res.status(404).json({ error: `No GitHub account found for '${owner}'.` });

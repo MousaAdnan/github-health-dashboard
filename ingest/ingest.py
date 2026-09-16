@@ -37,8 +37,11 @@ def _build_ssl_ctx() -> ssl.SSLContext:
             return ctx
     except Exception:
         pass
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    # Last resort, opt-in only: never silently disable verification, or a
+    # deployed container (no certifi, no brew) would send the token unverified.
+    if os.environ.get("INSECURE_SSL") == "1":
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
     return ctx
 
 SSL_CTX = _build_ssl_ctx()
