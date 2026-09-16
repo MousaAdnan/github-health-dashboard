@@ -1,6 +1,8 @@
 # GitHub Repository Health Dashboard
 
-A self-hosted tool that ingests GitHub repository metrics and surfaces a health score per repo. Built to answer the question: *"how active and well-maintained is this codebase?"*
+Hosted Link: https://github-health-o1me.onrender.com/ (50 second start up after inactivity)
+
+A self-hosted tool that ingests GitHub repository metrics and surfaces a health score per repo. Built to answer the question: *"Is this open source project abandoned before I work on it?"*
 
 ## Health Score (0–100)
 
@@ -62,28 +64,6 @@ cp .env.example .env          # add GITHUB_TOKEN if you have one
 docker compose up --build     # api on :3001, client on :5173
 ```
 
-## Deploy (free)
-
-The whole app — React build, Express API and the Python ingest — ships as one
-Docker image (`./Dockerfile`), so it runs as a single service on one URL.
-
-1. Push this repo to GitHub.
-2. On [render.com](https://render.com), **New → Blueprint**, point it at the repo.
-   Render reads `render.yaml` and creates a free Docker web service.
-3. In the service's **Environment** tab add `GITHUB_TOKEN` (a classic token with
-   no scopes). Without it the public demo shares one 60 req/hr limit with every
-   visitor.
-4. Deploy. The app is live at `https://<service-name>.onrender.com`.
-
-**Keeping it warm.** Render's free tier sleeps a service after 15 minutes idle,
-and the next visitor waits ~50s for a cold start. Point a free scheduler such as
-[cron-job.org](https://cron-job.org) at `https://<service>.onrender.com/api/health`
-every 10 minutes and it stays awake. One always-on free service uses ~730 of the
-750 monthly instance hours, so run exactly one.
-
-**State.** The free tier has no persistent disk, so the SQLite file lives at
-`/tmp/health.db` and is lost on restart. Ingest rebuilds it on demand, so it
-behaves as a cache rather than a database of record.
 
 ## API Reference
 
