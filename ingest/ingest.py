@@ -14,6 +14,7 @@ import ssl
 import time
 import urllib.request
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 
 # macOS ships without trusted CA certs for Python — use certifi if available,
@@ -49,6 +50,7 @@ SSL_CTX = _build_ssl_ctx()
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "../data/health.db"))
 TOKEN   = os.environ.get("GITHUB_TOKEN", "")
 BASE    = "https://api.github.com"
+MAX_WORKERS = int(os.environ.get("INGEST_WORKERS", "6"))
 
 
 # ── HTTP helpers ──────────────────────────────────────────────────────────────
@@ -186,9 +188,15 @@ def health_score(weekly: list[int], pr_merge_rate, issue_close_rate, days_since_
 
 # ── Ingest one repo ───────────────────────────────────────────────────────────
 
-def ingest_repo(conn: sqlite3.Connection, owner: str, repo: dict):
+# The four calls below are almost pure network latency (~1s each), so a 30-repo
+# owner costs ~2 minutes run serially — longer than the API route waits. Fetching
+# is therefore split from writing: the fetches run on a thread pool, while SQLite
+# (whose connections are not safe to share across threads) is only ever written
+# from the calling thread.
+
+def fetch_repo(owner: str, repo: dict) -> dict:
+    """Network only. Safe to call from a worker thread."""
     rid = f"{owner}/{repo['name']}"
-    now = datetime.now(timezone.utc).isoformat()
 
     # Commit activity (52 weeks)
     status, stats = gh_request(f"/repos/{rid}/stats/commit_activity")
@@ -199,20 +207,41 @@ def ingest_repo(conn: sqlite3.Connection, owner: str, repo: dict):
     # PRs — cap at 100 each to avoid unbounded fetching on large repos
     prs_open   = paginate(f"/repos/{rid}/pulls?state=open",   limit=100)
     prs_closed = paginate(f"/repos/{rid}/pulls?state=closed", limit=100)
-    all_prs    = prs_open + prs_closed
-
-    merged   = sum(1 for p in prs_closed if p.get("merged_at"))
-    pr_rate  = (merged / len(prs_closed)) if prs_closed else None
 
     # Issues (excluding PRs) — cap at 100
     issues_raw = paginate(f"/repos/{rid}/issues?state=all&filter=all", limit=100)
     issues     = [i for i in issues_raw if "pull_request" not in i]
+
+    return {
+        "rid":        rid,
+        "repo":       repo,
+        "weekly":     weekly,
+        "prs_open":   prs_open,
+        "prs_closed": prs_closed,
+        "issues":     issues,
+    }
+
+
+def write_repo(conn: sqlite3.Connection, owner: str, data: dict):
+    """Scoring and DB writes. Main thread only."""
+    rid        = data["rid"]
+    repo       = data["repo"]
+    weekly     = data["weekly"]
+    prs_open   = data["prs_open"]
+    prs_closed = data["prs_closed"]
+    issues     = data["issues"]
+    now        = datetime.now(timezone.utc).isoformat()
+
+    all_prs = prs_open + prs_closed
+    merged  = sum(1 for p in prs_closed if p.get("merged_at"))
+    pr_rate = (merged / len(prs_closed)) if prs_closed else None
+
     closed_iss = [i for i in issues if i["state"] == "closed"]
     issue_rate = (len(closed_iss) / len(issues)) if issues else None
 
     # Days since last push
-    pushed_at = repo.get("pushed_at") or repo.get("updated_at", now)
-    pushed_dt = datetime.fromisoformat(pushed_at.replace("Z", "+00:00"))
+    pushed_at  = repo.get("pushed_at") or repo.get("updated_at", now)
+    pushed_dt  = datetime.fromisoformat(pushed_at.replace("Z", "+00:00"))
     days_since = (datetime.now(timezone.utc) - pushed_dt).days
 
     score = health_score(weekly, pr_rate, issue_rate, days_since)
@@ -278,13 +307,19 @@ def main():
     note  = f" (capped at {MAX_REPOS} most-recently-pushed)" if len(repos) == MAX_REPOS else ""
     print(f"Found {len(repos)} public repos{note}. Ingesting...\n")
 
-    for repo in repos:
-        if repo.get("fork"):
-            continue   # skip forks — not the owner's original work
-        try:
-            ingest_repo(conn, owner, repo)
-        except Exception as exc:
-            print(f"  ✗ {owner}/{repo['name']}: {exc}")
+    targets = [r for r in repos if not r.get("fork")]   # skip forks — not the owner's own work
+
+    # Six workers: enough to hide per-request latency (a 30-repo owner drops from
+    # ~2 minutes to well under the API's timeout), while staying modest enough to
+    # avoid tripping GitHub's secondary rate limits. Writes stay on this thread.
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+        futures = {pool.submit(fetch_repo, owner, r): r for r in targets}
+        for future in as_completed(futures):
+            repo = futures[future]
+            try:
+                write_repo(conn, owner, future.result())
+            except Exception as exc:
+                print(f"  ✗ {owner}/{repo['name']}: {exc}")
 
     conn.execute(
         "INSERT OR REPLACE INTO owners (login, fetched_at) VALUES (?, ?)",
